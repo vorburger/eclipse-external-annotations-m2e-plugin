@@ -36,6 +36,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.launching.IRuntimeClasspathEntry;
+import org.eclipse.jdt.launching.JavaRuntime;
 import org.eclipse.m2e.core.project.IMavenProjectFacade;
 import org.eclipse.m2e.core.project.MavenProjectChangedEvent;
 import org.eclipse.m2e.core.project.configurator.AbstractProjectConfigurator;
@@ -78,6 +80,23 @@ public class ClasspathConfigurator extends AbstractProjectConfigurator implement
         // Do *NOT* configure the JRE's EEA here, but in configureRawClasspath(),
         // because it's the wrong time for M2E (and will break project import,
         // when the IProject doesn't fully exist in JDT yet at this stage).
+        if (mapping.containsKey(JAVA_GAV)) {
+            // TODO JDT bug? This does not actually work (because
+            // RuntimeClasspathEntry.updateClasspathEntry() does nothing for
+            // container, only Archive & Variable... :-(
+            //     JavaRuntime.computeJREEntry(JavaCore.create(mavenProjectFacade.getProject()))
+            //         .setExternalAnnotationsPath(mapping.get(JAVA_GAV));
+            // so we do this hand-stand ourselves instead:
+            IJavaProject javaProject = JavaCore.create(mavenProjectFacade.getProject());
+            if (javaProject != null) {
+                 IRuntimeClasspathEntry[] unresolved = JavaRuntime.computeUnresolvedRuntimeClasspath(javaProject);
+                 for (IRuntimeClasspathEntry entry : unresolved) {
+                    if (JRE_CONTAINER.equals(entry.getVariableName())) {
+                        entry.setExternalAnnotationsPath(mapping.get(JAVA_GAV));
+                    }
+                }
+            }
+        }
     }
 
     private void setExternalAnnotationsPath(IClasspathEntryDescriptor cpEntry, String path) {
